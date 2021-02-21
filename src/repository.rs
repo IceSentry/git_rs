@@ -97,13 +97,7 @@ pub fn init(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn dir_is_empty(path: &PathBuf) -> bool {
-    path.read_dir()
-        .map(|mut i| i.next().is_none())
-        .unwrap_or(false)
-}
-
-fn find(path: &PathBuf) -> Result<Repository> {
+pub fn find(path: &PathBuf) -> Result<Repository> {
     let path = path.canonicalize()?;
 
     if path.join(".git").is_dir() {
@@ -116,4 +110,10 @@ fn find(path: &PathBuf) -> Result<Repository> {
     }
 
     find(&parent)
+}
+
+fn dir_is_empty(path: &PathBuf) -> bool {
+    path.read_dir()
+        .map(|mut i| i.next().is_none())
+        .unwrap_or(false)
 }

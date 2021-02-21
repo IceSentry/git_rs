@@ -6,17 +6,19 @@ use std::{
 use anyhow::{bail, Result};
 use crypto::{digest::Digest, sha1::Sha1};
 use flate2::{read::GzDecoder, write::ZlibEncoder, Compression};
+use strum_macros::EnumString;
 
 use crate::repository::Repository;
 
-enum Type {
+#[derive(EnumString)]
+pub enum Type {
     Commit,
     Tree,
     Tag,
     Blob,
 }
 
-struct Object {
+pub struct Object {
     object_type: Type,
     data: Vec<u8>,
 }
@@ -31,14 +33,14 @@ impl Object {
         }
     }
 
-    fn serialize(&self) -> &[u8] {
+    pub fn serialize(&self) -> &[u8] {
         match self.object_type {
             Type::Blob => &self.data,
             _ => unimplemented!(),
         }
     }
 
-    fn deserialize(&mut self, data: Vec<u8>) {
+    pub fn deserialize(&mut self, data: Vec<u8>) {
         match self.object_type {
             Type::Blob => self.data = data,
             _ => unimplemented!(),
@@ -46,7 +48,7 @@ impl Object {
     }
 }
 
-fn read(repo: Repository, sha: &str) -> Result<Object> {
+pub fn read(repo: &Repository, sha: &str) -> Result<Object> {
     let path = repo.dir.join("objects").join(&sha[..2]).join(&sha[2..]);
 
     let f = fs::read(path)?;
@@ -89,7 +91,7 @@ fn read(repo: Repository, sha: &str) -> Result<Object> {
     })
 }
 
-fn write(repo: Repository, object: Object, actually_write: bool) -> Result<String> {
+pub fn write(repo: Repository, object: Object, actually_write: bool) -> Result<String> {
     let data = object.serialize();
     let mut result = object.serialize_type().to_vec(); // data.len() + b'\x00' + data;
     result.push(b' ');
@@ -111,6 +113,6 @@ fn write(repo: Repository, object: Object, actually_write: bool) -> Result<Strin
     Ok(sha)
 }
 
-fn find(_repo: Repository, name: &str) -> &str {
+pub fn find<'a>(_repo: &'a Repository, name: &'a str, _object_type: Type) -> &'a str {
     name
 }
