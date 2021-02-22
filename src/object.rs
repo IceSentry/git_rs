@@ -116,3 +116,13 @@ pub fn write(repo: Repository, object: Object, actually_write: bool) -> Result<S
 pub fn find<'a>(_repo: &'a Repository, name: &'a str, _object_type: Type) -> &'a str {
     name
 }
+
+pub fn hash(
+    data: Vec<u8>,
+    object_type: Type,
+    repo: Repository,
+    should_write: bool,
+) -> Result<String> {
+    let obj = Object { object_type, data };
+    write(repo, obj, should_write)
+}

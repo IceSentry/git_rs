@@ -3,6 +3,7 @@ use std::{env, io::Write, path::PathBuf};
 use anyhow::Result;
 use clap::Clap;
 use git_rs::{object, repository};
+use repository::Repository;
 
 /// The stupid content tracker
 #[derive(Clap)]
@@ -42,7 +43,7 @@ struct Init {
 struct CatFile {
     /// Specify the type
     #[clap(name = "TYPE")]
-    r#type: object::Type,
+    object_type: object::Type,
 
     /// The object to display
     #[clap(name = "OBJECT")]
@@ -53,7 +54,7 @@ struct CatFile {
 struct HashObject {
     /// Specify the type
     #[clap(name = "TYPE", short, default_value = "blob")]
-    r#type: object::Type,
+    object_type: object::Type,
 
     /// Actually write the object into the database
     #[clap(name = "write", short)]
@@ -71,13 +72,18 @@ fn main() -> Result<()> {
         Commands::Add => {}
         Commands::CatFile(args) => {
             let repo = repository::find(&env::current_dir()?)?;
-            let object = object::read(&repo, object::find(&repo, &args.object, args.r#type))?;
+            let object = object::read(&repo, object::find(&repo, &args.object, args.object_type))?;
             std::io::stdout().write_all(object.serialize())?;
         }
         Commands::Checkout => {}
         Commands::Commit => {}
-        Commands::HashObject(args) => {}
-        Commands::Init(init) => git_rs::repository::init(init.path)?,
+        Commands::HashObject(args) => {
+            let repo = Repository::new(".".into(), false)?;
+            let data = std::fs::read(args.path)?;
+            let sha = object::hash(data, args.object_type, repo, args.write)?;
+            println!("{}", sha);
+        }
+        Commands::Init(args) => git_rs::repository::init(args.path)?,
         Commands::Log => {}
         Commands::LsTree => {}
         Commands::Merge => {}
