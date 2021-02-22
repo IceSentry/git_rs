@@ -1,3 +1,3 @@
 # git_rs
 
-This is an early implementation of <https://wyag.thb.lt>
+This is a rust version of "Building git"
