@@ -1,14 +1,16 @@
-use std::{fs, io::Read, path::PathBuf};
+#![allow(clippy::expect_fun_call)]
+
+use std::{
+    fs,
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 use anyhow::Result;
 use clap::Clap;
+use flate2::read::ZlibDecoder;
 use git_rs::Entry;
 use glob::glob;
-
-use flate2::read::{GzDecoder, ZlibDecoder};
-use flate2::write::ZlibEncoder;
-use flate2::Compression;
-use std::io::prelude::*;
 
 const GIT_FOLDER: &str = "git"; // TODO reset to .git
 
@@ -61,26 +63,28 @@ fn main() -> Result<()> {
             let objects_path = git_path.join("objects");
             let db = git_rs::Database { path: objects_path };
 
-            let entries: Vec<Entry> = glob("*")
+            let entries: Vec<Entry> = glob("**/*")
                 .expect("Failed to read glob pattern")
                 .filter_map(|path| match path {
                     Ok(path) => {
-                        if path.is_dir() {
+                        if path.is_dir()
+                            || path.starts_with(".git")
+                            || path.starts_with(GIT_FOLDER)
+                            || path.starts_with("target")
+                        {
                             None
                         } else {
-                            match path.file_name().unwrap().to_str().unwrap() {
-                                ".git" | GIT_FOLDER | "target" => None,
-                                _ => Some(path),
-                            }
+                            Some(path)
                         }
                     }
                     _ => None,
                 })
                 .map(|path| {
-                    let data = fs::read(&path)
-                        .unwrap_or_else(|_| panic!("Failed to read {}", &path.display()));
+                    let data =
+                        fs::read(&path).expect(&format!("Failed to read {}", &path.display()));
                     let blob = git_rs::Object::Blob(data);
                     let object_id = db.store(blob).expect("Failed to store object in database");
+                    println!("{} {}", path.display(), object_id);
                     Entry {
                         name: path,
                         object_id,
@@ -94,13 +98,16 @@ fn main() -> Result<()> {
             println!("tree: {}", object_id);
         }
         Commands::Read(args) => {
+            // WARN this is just for debug purposes
             let compressed_file = fs::read(args.path)?;
             let mut d = ZlibDecoder::new(&compressed_file[..]);
-            let mut s = String::new();
-            d.read_to_string(&mut s).expect("Failed to read to string");
-            println!("{}", s);
+            let mut buf = Vec::new();
+            d.read_to_end(&mut buf)
+                .expect("Failed to read compressed_file");
+            std::io::stdout().write_all(&buf)?; // This makes it possible to use hexdump
         }
         Commands::Clear => {
+            // WARN this is just for debug purposes
             std::fs::remove_dir_all(GIT_FOLDER)?;
         }
     }

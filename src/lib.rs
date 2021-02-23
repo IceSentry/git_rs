@@ -47,9 +47,9 @@ impl Object {
         let data = self.serialize_data();
         let mut content = vec![];
         content.extend_from_slice(self.serialize_type());
-        content.push(b' ');
+        content.push(0x20);
         content.extend_from_slice(&data.len().to_ne_bytes());
-        content.push(b'\0');
+        content.push(0x0);
         content.extend_from_slice(&data);
 
         content
@@ -76,19 +76,19 @@ fn hash(obj: &Object) -> String {
 
 fn write(path: &Path, object_id: &str, content: Vec<u8>) -> Result<()> {
     let object_path = path.join(&object_id[..2]).join(&object_id[2..]);
-    let temp_path = object_path.parent().unwrap().join(generate_temp_name());
+    let parent = object_path.parent().expect("Failed to get parent");
+
+    let temp_path = parent.join(generate_temp_name());
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::fast());
     encoder.write_all(&content)?;
     let compressed = &encoder.finish()?;
 
-    fs::create_dir_all(&object_path.parent().unwrap())?;
+    fs::create_dir_all(&parent)?;
     let mut file = File::create(&temp_path)?;
     file.write_all(compressed)?;
 
     fs::rename(temp_path, &object_path)?;
-
-    println!("writing {} to {}", path.display(), object_path.display());
 
     Ok(())
 }
