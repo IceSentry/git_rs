@@ -17,10 +17,10 @@ pub enum Object {
 }
 
 impl Object {
-    pub fn serialize_type(&self) -> &[u8] {
+    pub fn serialize_type(&self) -> &str {
         match self {
-            Object::Blob(_) => b"blob",
-            Object::Tree(_) => b"tree",
+            Object::Blob(_) => "blob",
+            Object::Tree(_) => "tree",
         }
     }
 
@@ -45,13 +45,10 @@ impl Object {
 
     pub fn serialize(&self) -> Vec<u8> {
         let data = self.serialize_data();
-        let mut content = vec![];
-        content.extend_from_slice(self.serialize_type());
-        content.push(0x20);
-        content.extend_from_slice(&data.len().to_ne_bytes());
-        content.push(0x0);
+        let mut content = format!("{} {}\0", self.serialize_type(), data.len())
+            .as_bytes()
+            .to_vec();
         content.extend_from_slice(&data);
-
         content
     }
 }
