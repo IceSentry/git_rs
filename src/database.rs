@@ -28,7 +28,7 @@ impl Object {
         match self {
             Object::Blob(_) => "blob",
             Object::Tree(_) => "tree",
-            Object::Commit { .. } => "Commit",
+            Object::Commit { .. } => "commit",
         }
     }
 
@@ -44,7 +44,7 @@ impl Object {
                         let mut entry_vec = format!("{} {}\0", MODE, entry.name.display())
                             .as_bytes()
                             .to_vec();
-                        entry_vec.extend_from_slice(&entry.object_id.as_bytes()[..2]);
+                        entry_vec.extend_from_slice(&entry.object_id.as_bytes());
                         entry_vec
                     })
                     .collect()

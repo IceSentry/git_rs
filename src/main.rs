@@ -87,6 +87,8 @@ fn main() -> Result<()> {
             let tree = Object::Tree(entries);
             let tree_id = db.store(tree)?;
 
+            println!("tree: {}", tree_id);
+
             let name = std::env::var("GIT_AUTHOR_NAME").expect("GIT_AUTHOR_NAME is undefined");
             let email = std::env::var("GIT_AUTHOR_EMAIL").expect("GIT_AUTHOR_EMAIL is undefined");
 
