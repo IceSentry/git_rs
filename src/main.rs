@@ -7,11 +7,13 @@ use std::{
 };
 
 use anyhow::Result;
+use chrono::Utc;
 use clap::Clap;
 use dotenv::dotenv;
 use flate2::read::ZlibDecoder;
-use git_rs::Entry;
 use glob::glob;
+
+use git_rs::database::{Author, Database, Entry, Object};
 
 const GIT_FOLDER: &str = "git"; // TODO reset to .git
 
@@ -51,7 +53,7 @@ fn main() -> Result<()> {
             let root_path = std::env::current_dir()?;
             let git_path = root_path.join(GIT_FOLDER);
             let objects_path = git_path.join("objects");
-            let db = git_rs::Database { path: objects_path };
+            let db = Database { path: objects_path };
 
             let entries: Vec<Entry> = glob("**/*")
                 .expect("Failed to read glob pattern")
@@ -72,7 +74,7 @@ fn main() -> Result<()> {
                 .map(|path| {
                     let data =
                         fs::read(&path).expect(&format!("Failed to read {}", &path.display()));
-                    let blob = git_rs::Object::Blob(data);
+                    let blob = Object::Blob(data);
                     let object_id = db.store(blob).expect("Failed to store object in database");
                     println!("{} {}", path.display(), object_id);
                     Entry {
@@ -82,10 +84,42 @@ fn main() -> Result<()> {
                 })
                 .collect();
 
-            let tree = git_rs::Object::Tree(entries);
-            let object_id = db.store(tree)?;
+            let tree = Object::Tree(entries);
+            let tree_id = db.store(tree)?;
 
-            println!("tree: {}", object_id);
+            let name = std::env::var("GIT_AUTHOR_NAME").expect("GIT_AUTHOR_NAME is undefined");
+            let email = std::env::var("GIT_AUTHOR_EMAIL").expect("GIT_AUTHOR_EMAIL is undefined");
+
+            let author = Author {
+                name,
+                email,
+                time: Utc::now(),
+            };
+
+            let message = if let Some(message) = message {
+                message
+            } else {
+                let mut message_buf = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut message_buf)
+                    .expect("Failed to read message from stdin");
+                message_buf
+            };
+
+            let commit = Object::Commit {
+                tree_id,
+                author,
+                message: message.clone(),
+            };
+
+            let commit_id = db.store(commit)?;
+            std::fs::write(git_path.join("HEAD"), &commit_id)?;
+
+            println!(
+                "[(root-commit) {}]  {}",
+                commit_id,
+                message.lines().next().expect("Failed to read message")
+            );
         }
         Commands::Read { path } => {
             // WARN this is just for debug purposes
@@ -94,7 +128,7 @@ fn main() -> Result<()> {
             let mut buf = Vec::new();
             d.read_to_end(&mut buf)
                 .expect("Failed to read compressed_file");
-            std::io::stdout().write_all(&buf)?; // This makes it possible to use hexdump
+            std::io::stdout().write_all(&buf)?; // This makes it possible to pipe the output
         }
         Commands::Clear => {
             // WARN this is just for debug purposes
