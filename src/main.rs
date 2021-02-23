@@ -15,52 +15,39 @@ use glob::glob;
 
 const GIT_FOLDER: &str = "git"; // TODO reset to .git
 
-/// The stupid content tracker
+/// git_rs a git reimplementation in rust
 #[derive(Clap)]
 #[clap()]
-struct Opts {
-    #[clap(subcommand)]
-    commands: Commands,
-}
-
-#[derive(Clap)]
 enum Commands {
-    Init(Init),
-    Commit,
-    Read(ReadArgs),
+    Init {
+        /// Where to create the repository.
+        #[clap(name = "directory", parse(from_os_str))]
+        path: Option<PathBuf>,
+    },
+    Commit {
+        #[clap(short, long)]
+        message: Option<String>,
+    },
+    Read {
+        #[clap(name = "file", parse(from_os_str))]
+        path: PathBuf,
+    },
     Clear,
-}
-
-#[derive(Clap)]
-struct Init {
-    /// Where to create the repository.
-    #[clap(name = "directory", parse(from_os_str))]
-    path: Option<PathBuf>,
-}
-
-#[derive(Clap)]
-struct ReadArgs {
-    /// Where to create the repository.
-    #[clap(name = "file", parse(from_os_str))]
-    path: PathBuf,
 }
 
 fn main() -> Result<()> {
     dotenv().ok();
 
-    let opts: Opts = Opts::parse();
+    let commands: Commands = Commands::parse();
 
-    match opts.commands {
-        Commands::Init(args) => {
-            let git_path = args
-                .path
-                .unwrap_or(std::env::current_dir()?)
-                .join(GIT_FOLDER);
+    match commands {
+        Commands::Init { path } => {
+            let git_path = path.unwrap_or(std::env::current_dir()?).join(GIT_FOLDER);
             fs::create_dir_all(git_path.join("objects"))?;
             fs::create_dir_all(git_path.join("refs"))?;
             println!("Initialized git_rs repository in {}", git_path.display());
         }
-        Commands::Commit => {
+        Commands::Commit { message } => {
             let root_path = std::env::current_dir()?;
             let git_path = root_path.join(GIT_FOLDER);
             let objects_path = git_path.join("objects");
@@ -100,9 +87,9 @@ fn main() -> Result<()> {
 
             println!("tree: {}", object_id);
         }
-        Commands::Read(args) => {
+        Commands::Read { path } => {
             // WARN this is just for debug purposes
-            let compressed_file = fs::read(args.path)?;
+            let compressed_file = fs::read(path)?;
             let mut d = ZlibDecoder::new(&compressed_file[..]);
             let mut buf = Vec::new();
             d.read_to_end(&mut buf)
