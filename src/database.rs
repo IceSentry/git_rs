@@ -11,13 +11,15 @@ use chrono::{DateTime, Utc};
 use crypto::{digest::Digest, sha1::Sha1};
 use flate2::{write::ZlibEncoder, Compression};
 
+use crate::ObjectId;
+
 const MODE: &str = "100644";
 
 pub enum Object {
     Blob(Vec<u8>),
     Tree(Vec<Entry>),
     Commit {
-        tree_id: String,
+        tree_id: ObjectId,
         author: Author,
         message: String,
     },
@@ -77,18 +79,22 @@ impl Object {
 }
 
 pub struct Database {
-    pub path: PathBuf,
+    path: PathBuf,
 }
 
 impl Database {
-    pub fn store(&self, obj: Object) -> Result<String> {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+
+    pub fn store(&self, obj: Object) -> Result<ObjectId> {
         let object_id = hash(&obj);
         write(&self.path, &object_id, obj.serialize()).expect("Failed to write object to database");
         Ok(object_id)
     }
 }
 
-fn hash(obj: &Object) -> String {
+fn hash(obj: &Object) -> ObjectId {
     let mut hasher = Sha1::new();
     hasher.input(&obj.serialize());
     hasher.result_str()
@@ -122,7 +128,7 @@ fn generate_temp_name() -> String {
 #[derive(Clone)]
 pub struct Entry {
     pub name: PathBuf,
-    pub object_id: String,
+    pub object_id: ObjectId,
 }
 
 pub struct Author {

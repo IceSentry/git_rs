@@ -11,11 +11,12 @@ use chrono::Utc;
 use clap::Clap;
 use dotenv::dotenv;
 use flate2::read::ZlibDecoder;
-use glob::glob;
 
-use git_rs::database::{Author, Database, Entry, Object};
-
-const GIT_FOLDER: &str = "git"; // TODO reset to .git
+use git_rs::{
+    database::{Author, Database, Entry, Object},
+    workspace::Workspace,
+    GIT_FOLDER,
+};
 
 /// git_rs a git reimplementation in rust
 #[derive(Clap)]
@@ -53,24 +54,14 @@ fn main() -> Result<()> {
             let root_path = std::env::current_dir()?;
             let git_path = root_path.join(GIT_FOLDER);
             let objects_path = git_path.join("objects");
-            let db = Database { path: objects_path };
 
-            let entries: Vec<Entry> = glob("**/*")
-                .expect("Failed to read glob pattern")
-                .filter_map(|path| match path {
-                    Ok(path) => {
-                        if path.is_dir()
-                            || path.starts_with(".git")
-                            || path.starts_with(GIT_FOLDER)
-                            || path.starts_with("target")
-                        {
-                            None
-                        } else {
-                            Some(path)
-                        }
-                    }
-                    _ => None,
-                })
+            let workspace = Workspace::new(root_path);
+            let db = Database::new(objects_path);
+
+            let entries: Vec<Entry> = workspace
+                .list_files()
+                .expect("Workspace is empty")
+                .iter()
                 .map(|path| {
                     let data =
                         fs::read(&path).expect(&format!("Failed to read {}", &path.display()));
@@ -78,7 +69,7 @@ fn main() -> Result<()> {
                     let object_id = db.store(blob).expect("Failed to store object in database");
                     println!("{} {}", path.display(), object_id);
                     Entry {
-                        name: path,
+                        name: path.into(),
                         object_id,
                     }
                 })
