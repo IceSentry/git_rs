@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::Result;
 use clap::Clap;
+use dotenv::dotenv;
 use flate2::read::ZlibDecoder;
 use git_rs::Entry;
 use glob::glob;
@@ -45,6 +46,8 @@ struct ReadArgs {
 }
 
 fn main() -> Result<()> {
+    dotenv().ok();
+
     let opts: Opts = Opts::parse();
 
     match opts.commands {
