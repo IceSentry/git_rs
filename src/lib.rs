@@ -1,10 +1,7 @@
 #![allow(clippy::expect_fun_call)]
 
-pub mod blob;
-pub mod commit;
 pub mod database;
 pub mod lockfile;
-pub mod tree;
 pub mod workspace;
 
 use std::path::PathBuf;

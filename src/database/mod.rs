@@ -1,3 +1,7 @@
+pub mod blob;
+pub mod commit;
+pub mod tree;
+
 use std::{
     fs::{self, File},
     io::Write,
@@ -23,6 +27,12 @@ pub trait Object {
         content.extend_from_slice(&data);
         content
     }
+
+    /// Computes the sha1 of the serialized content of the object
+    fn object_id(&self) -> ObjectId {
+        let content = self.serialize();
+        hash(&content)
+    }
 }
 
 pub struct Database {
@@ -34,11 +44,12 @@ impl Database {
         Self { path }
     }
 
-    pub fn store<O>(&self, obj: &O) -> Result<ObjectId>
+    pub fn store<O>(&self, object: &O) -> Result<ObjectId>
     where
         O: Object,
     {
-        let content = obj.serialize();
+        // We don't use object.object_id() here because it would call serialize() twice in a row
+        let content = object.serialize();
         let object_id = hash(&content);
         self.write(&object_id, content)?;
         Ok(object_id)
@@ -69,6 +80,7 @@ impl Database {
     }
 }
 
+/// Computes the sha1 of the given data
 pub fn hash(content: &[u8]) -> ObjectId {
     let mut hasher = Sha1::new();
     hasher.input(content);

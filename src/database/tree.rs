@@ -30,6 +30,7 @@ impl TreeEntry {
 
     pub fn object_id(&self) -> ObjectId {
         match self {
+            // TODO this shouldn't be computed here
             TreeEntry::Tree(tree) => database::hash(&tree.serialize()),
             TreeEntry::Entry(entry) => entry.object_id.clone(),
         }

@@ -13,8 +13,9 @@ use dotenv::dotenv;
 use flate2::read::ZlibDecoder;
 
 use git_rs::{
-    blob::Blob, commit::Commit, database::Database, tree::Entry, workspace::Workspace, Author,
-    Refs, GIT_FOLDER,
+    database::{blob::Blob, commit::Commit, tree::Entry, Database},
+    workspace::Workspace,
+    Author, Refs, GIT_FOLDER,
 };
 
 /// git_rs a git reimplementation in rust
@@ -75,7 +76,7 @@ fn main() -> Result<()> {
                 })
                 .collect();
 
-            let tree = git_rs::tree::build(&entries);
+            let tree = git_rs::database::tree::build(&entries);
             let tree_id = tree.traverse(&|tree| db.store(tree).expect("Failed while saving tree"));
 
             let name = std::env::var("GIT_AUTHOR_NAME").expect("GIT_AUTHOR_NAME is undefined");
