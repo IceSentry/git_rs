@@ -1,6 +1,7 @@
 #![allow(clippy::expect_fun_call)]
 
 pub mod database;
+pub mod index;
 pub mod lockfile;
 pub mod workspace;
 
@@ -11,6 +12,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
+use crypto::{digest::Digest, sha1::Sha1};
 
 use lockfile::Lockfile;
 
@@ -72,5 +74,39 @@ impl Refs {
         } else {
             None
         }
+    }
+}
+
+/// Computes the sha1 of the given data
+pub fn hash(content: &[u8]) -> ObjectId {
+    let mut hasher = HashWriter::new();
+    hasher.write(content);
+    hasher.finish()
+}
+
+/// Wrapper around Sha1
+pub struct HashWriter {
+    hasher: Sha1,
+}
+
+impl Default for HashWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HashWriter {
+    pub fn new() -> Self {
+        Self {
+            hasher: Sha1::new(),
+        }
+    }
+
+    pub fn write(&mut self, bytes: &[u8]) {
+        self.hasher.input(bytes);
+    }
+
+    pub fn finish(&mut self) -> String {
+        self.hasher.result_str()
     }
 }

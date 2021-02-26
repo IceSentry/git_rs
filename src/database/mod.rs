@@ -10,10 +10,21 @@ use std::{
 };
 
 use anyhow::Result;
-use crypto::{digest::Digest, sha1::Sha1};
 use flate2::{write::ZlibEncoder, Compression};
+use strum_macros::Display;
+use strum_macros::IntoStaticStr;
 
-use crate::ObjectId;
+use crate::{hash, ObjectId};
+
+#[derive(IntoStaticStr, Display)]
+pub enum Mode {
+    #[strum(serialize = "100644")]
+    Regular,
+    #[strum(serialize = "100755")]
+    Executable,
+    #[strum(serialize = "40000")]
+    Directory,
+}
 
 pub trait Object {
     fn serialize_type(&self) -> &str;
@@ -77,13 +88,6 @@ impl Database {
 
         Ok(())
     }
-}
-
-/// Computes the sha1 of the given data
-pub fn hash(content: &[u8]) -> ObjectId {
-    let mut hasher = Sha1::new();
-    hasher.input(content);
-    hasher.result_str()
 }
 
 /// Generates a random string of 6 alphanumerical characters

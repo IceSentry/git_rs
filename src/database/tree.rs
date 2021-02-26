@@ -7,13 +7,9 @@ use std::{
 use is_executable::IsExecutable;
 
 use crate::{
-    database::{self, Object},
+    database::{self, Mode, Object},
     ObjectId,
 };
-
-const REGULAR_MODE: &str = "100644";
-const EXECUTABLE_MODE: &str = "100755";
-const DIRECTORY_MODE: &str = "40000";
 
 pub enum TreeEntry {
     Tree(Tree),
@@ -23,7 +19,7 @@ pub enum TreeEntry {
 impl TreeEntry {
     pub fn mode(&self) -> &str {
         match self {
-            TreeEntry::Tree(_) => DIRECTORY_MODE,
+            TreeEntry::Tree(_) => Mode::Directory.into(),
             TreeEntry::Entry(entry) => entry.mode(),
         }
     }
@@ -44,26 +40,6 @@ impl std::fmt::Debug for TreeEntry {
             TreeEntry::Entry(entry) => {
                 write!(f, "{} {}", entry.path.display(), &entry.object_id[..6])
             }
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Entry {
-    pub path: PathBuf,
-    pub object_id: ObjectId,
-}
-
-impl Entry {
-    pub fn new(path: PathBuf, object_id: ObjectId) -> Self {
-        Self { path, object_id }
-    }
-
-    pub fn mode(&self) -> &str {
-        if self.path.is_executable() {
-            EXECUTABLE_MODE
-        } else {
-            REGULAR_MODE
         }
     }
 }
@@ -154,4 +130,24 @@ pub fn build(entries: &[Entry]) -> Tree {
     }
     log::debug!("{:#?}", root.entries);
     root
+}
+
+#[derive(Clone, Debug)]
+pub struct Entry {
+    pub path: PathBuf,
+    pub object_id: ObjectId,
+}
+
+impl Entry {
+    pub fn new(path: PathBuf, object_id: ObjectId) -> Self {
+        Self { path, object_id }
+    }
+
+    pub fn mode(&self) -> &str {
+        if self.path.is_executable() {
+            Mode::Executable.into()
+        } else {
+            Mode::Regular.into()
+        }
+    }
 }

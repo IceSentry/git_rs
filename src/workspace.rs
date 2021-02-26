@@ -19,6 +19,10 @@ impl Workspace {
         list_files_recursive(&self.path)
     }
 
+    pub fn read(&self, path: &Path) -> Vec<u8> {
+        std::fs::read(&self.path.join(path)).expect(&format!("Failed to read {}", &path.display()))
+    }
+
     pub fn file_metadata(&self, path: &Path) -> std::fs::Metadata {
         std::fs::metadata(self.path.join(path)).expect("Failed to read metadata")
     }

@@ -14,6 +14,7 @@ use flate2::read::ZlibDecoder;
 
 use git_rs::{
     database::{blob::Blob, commit::Commit, tree::Entry, Database},
+    index::Index,
     workspace::Workspace,
     Author, Refs, GIT_FOLDER,
 };
@@ -30,6 +31,12 @@ enum Commands {
     Commit {
         #[clap(short, long)]
         message: Option<String>,
+    },
+    /// Add file to the index
+    Add {
+        /// File to add
+        #[clap(parse(from_os_str))]
+        path: PathBuf,
     },
     Read {
         #[clap(name = "file", parse(from_os_str))]
@@ -56,10 +63,9 @@ fn main() -> Result<()> {
             // FIXME this assumes we are at root of repo
             let root_path = std::env::current_dir()?;
             let git_path = root_path.join(GIT_FOLDER);
-            let objects_path = git_path.join("objects");
 
             let workspace = Workspace::new(root_path.clone());
-            let db = Database::new(objects_path);
+            let db = Database::new(git_path.join("objects"));
             let refs = Refs::new(git_path);
 
             let entries: Vec<Entry> = workspace
@@ -81,12 +87,9 @@ fn main() -> Result<()> {
             let tree = git_rs::database::tree::build(&entries);
             let tree_id = tree.traverse(&|tree| db.store(tree).expect("Failed while saving tree"));
 
-            let name = std::env::var("GIT_AUTHOR_NAME").expect("GIT_AUTHOR_NAME is undefined");
-            let email = std::env::var("GIT_AUTHOR_EMAIL").expect("GIT_AUTHOR_EMAIL is undefined");
-
             let author = Author {
-                name,
-                email,
+                name: std::env::var("GIT_AUTHOR_NAME").expect("GIT_AUTHOR_NAME is undefined"),
+                email: std::env::var("GIT_AUTHOR_EMAIL").expect("GIT_AUTHOR_EMAIL is undefined"),
                 time: Utc::now(),
             };
 
@@ -104,7 +107,6 @@ fn main() -> Result<()> {
             let is_root = parent.is_some();
 
             let commit = Commit::new(parent, tree_id, author, message.clone());
-
             let commit_id = db.store(&commit)?;
             refs.update_head(commit_id.clone())?;
 
@@ -114,6 +116,26 @@ fn main() -> Result<()> {
                 commit_id,
                 message.lines().next().expect("Failed to read message")
             );
+        }
+        Commands::Add { path } => {
+            // FIXME this assumes we are at root of repo
+            log::debug!("adding {} to index", path.display());
+            log::debug!("mode: {}", git_rs::database::Mode::Directory);
+            let root_path = std::env::current_dir()?;
+            let git_path = root_path.join(GIT_FOLDER);
+
+            let workspace = Workspace::new(root_path);
+            let db = Database::new(git_path.join("objects"));
+            let mut index = Index::new(git_path.join("index"));
+
+            let data = workspace.read(&path);
+            let stat = workspace.file_metadata(&path);
+
+            let blob = Blob::new(data);
+            let object_id = db.store(&blob)?;
+
+            index.add(&path, object_id, &stat)?;
+            index.write_updates()?;
         }
         Commands::Read { path } => {
             // WARN this is just for debug purposes
