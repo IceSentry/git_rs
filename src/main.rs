@@ -40,6 +40,8 @@ enum Commands {
 
 fn main() -> Result<()> {
     dotenv().ok();
+    env_logger::init();
+    // pretty_env_logger::init();
 
     let commands: Commands = Commands::parse();
 
@@ -48,7 +50,7 @@ fn main() -> Result<()> {
             let git_path = path.unwrap_or(std::env::current_dir()?).join(GIT_FOLDER);
             fs::create_dir_all(git_path.join("objects"))?;
             fs::create_dir_all(git_path.join("refs"))?;
-            println!("Initialized git_rs repository in {}", git_path.display());
+            log::info!("Initialized git_rs repository in {}", git_path.display());
         }
         Commands::Commit { message } => {
             // FIXME this assumes we are at root of repo
@@ -71,7 +73,7 @@ fn main() -> Result<()> {
 
                     // Make sure the entry path is relative to root and not the full path
                     let rel_path = pathdiff::diff_paths(path, &root_path).unwrap();
-                    println!("{} {}", rel_path.display(), object_id);
+                    log::trace!("{} {}", rel_path.display(), object_id);
                     Entry::new(rel_path, object_id)
                 })
                 .collect();
@@ -106,7 +108,7 @@ fn main() -> Result<()> {
             let commit_id = db.store(&commit)?;
             refs.update_head(commit_id.clone())?;
 
-            println!(
+            log::info!(
                 "[{}{}]  {}",
                 if is_root { "(root-commit) " } else { "" },
                 commit_id,

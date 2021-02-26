@@ -81,16 +81,15 @@ impl Object for Tree {
         self.entries
             .iter()
             .flat_map(|(path, entry)| {
-                velcro::vec![
-                    ..format!(
-                        "{} {}\0",
-                        entry.mode(),
-                        path.to_str().expect("Failed to convert to str")
-                    )
-                    .as_bytes()
-                    .to_vec(),
-                    ..entry.object_id().as_bytes()
-                ]
+                let mut entry_vec = format!(
+                    "{} {}\0",
+                    entry.mode(),
+                    path.to_str().expect("Failed to convert to str")
+                )
+                .as_bytes()
+                .to_vec();
+                entry_vec.extend_from_slice(entry.object_id().as_bytes());
+                entry_vec
             })
             .collect()
     }
@@ -153,6 +152,6 @@ pub fn build(entries: &[Entry]) -> Tree {
         });
         root.add_entry(&parents, entry.clone());
     }
-    println!("{:#?}", root.entries);
+    log::debug!("{:#?}", root.entries);
     root
 }

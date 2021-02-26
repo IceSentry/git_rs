@@ -70,10 +70,9 @@ impl Database {
         let compressed = &encoder.finish()?;
 
         fs::create_dir_all(&dirname)?;
-        let mut file = File::create(&temp_path)?;
-        file.write_all(compressed)?;
+        File::create(&temp_path)?.write_all(compressed)?;
 
-        println!("Writing {}", object_path.display());
+        log::trace!("Writing {}", object_path.display());
         fs::rename(temp_path, &object_path)?;
 
         Ok(())

@@ -4,14 +4,15 @@ pub mod database;
 pub mod lockfile;
 pub mod workspace;
 
-use std::path::PathBuf;
+use std::{
+    fmt::{self, Display, Formatter},
+    path::PathBuf,
+};
 
 use anyhow::{Context, Result};
-use lockfile::Lockfile;
-
-use std::fmt::{self, Display, Formatter};
-
 use chrono::{DateTime, Utc};
+
+use lockfile::Lockfile;
 
 type ObjectId = String;
 
