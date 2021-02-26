@@ -18,12 +18,18 @@ impl Workspace {
     pub fn list_files(&self) -> Result<Vec<PathBuf>> {
         list_files_recursive(&self.path)
     }
+
+    pub fn file_metadata(&self, path: &Path) -> std::fs::Metadata {
+        std::fs::metadata(self.path.join(path)).expect("Failed to read metadata")
+    }
 }
 
 fn list_files_recursive(path: &Path) -> Result<Vec<PathBuf>> {
     let mut files = vec![];
     for file in std::fs::read_dir(path)? {
         let file_path = file?.path();
+
+        // ish
         if IGNORED.contains(&file_path.file_name().unwrap().to_str().unwrap()) {
             continue;
         }

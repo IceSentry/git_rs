@@ -13,9 +13,8 @@ use dotenv::dotenv;
 use flate2::read::ZlibDecoder;
 
 use git_rs::{
-    database::{Author, Database, Entry, Object},
-    workspace::Workspace,
-    GIT_FOLDER,
+    blob::Blob, commit::Commit, database::Database, tree::Entry, workspace::Workspace, Author,
+    Refs, GIT_FOLDER,
 };
 
 /// git_rs a git reimplementation in rust
@@ -51,34 +50,33 @@ fn main() -> Result<()> {
             println!("Initialized git_rs repository in {}", git_path.display());
         }
         Commands::Commit { message } => {
+            // FIXME this assumes we are at root of repo
             let root_path = std::env::current_dir()?;
             let git_path = root_path.join(GIT_FOLDER);
             let objects_path = git_path.join("objects");
 
-            let workspace = Workspace::new(root_path);
+            let workspace = Workspace::new(root_path.clone());
             let db = Database::new(objects_path);
+            let refs = Refs::new(git_path);
 
             let entries: Vec<Entry> = workspace
-                .list_files()
-                .expect("Workspace is empty")
+                .list_files()?
                 .iter()
                 .map(|path| {
                     let data =
                         fs::read(&path).expect(&format!("Failed to read {}", &path.display()));
-                    let blob = Object::Blob(data);
-                    let object_id = db.store(blob).expect("Failed to store object in database");
-                    println!("{} {}", path.display(), object_id);
-                    Entry {
-                        name: path.into(),
-                        object_id,
-                    }
+                    let blob = Blob::new(data);
+                    let object_id = db.store(&blob).expect("Failed to store object in database");
+
+                    // Make sure the entry path is relative to root and not the full path
+                    let rel_path = pathdiff::diff_paths(path, &root_path).unwrap();
+                    println!("{} {}", rel_path.display(), object_id);
+                    Entry::new(rel_path, object_id)
                 })
                 .collect();
 
-            let tree = Object::Tree(entries);
-            let tree_id = db.store(tree)?;
-
-            println!("tree: {}", tree_id);
+            let tree = git_rs::tree::build(&entries);
+            let tree_id = tree.traverse(&|tree| db.store(tree).expect("Failed while saving tree"));
 
             let name = std::env::var("GIT_AUTHOR_NAME").expect("GIT_AUTHOR_NAME is undefined");
             let email = std::env::var("GIT_AUTHOR_EMAIL").expect("GIT_AUTHOR_EMAIL is undefined");
@@ -89,8 +87,8 @@ fn main() -> Result<()> {
                 time: Utc::now(),
             };
 
-            let message = if let Some(message) = message {
-                message
+            let message = if let Some(value) = message {
+                value
             } else {
                 let mut message_buf = String::new();
                 std::io::stdin()
@@ -99,17 +97,17 @@ fn main() -> Result<()> {
                 message_buf
             };
 
-            let commit = Object::Commit {
-                tree_id,
-                author,
-                message: message.clone(),
-            };
+            let parent = refs.read_head();
+            let is_root = parent.is_some();
 
-            let commit_id = db.store(commit)?;
-            std::fs::write(git_path.join("HEAD"), &commit_id)?;
+            let commit = Commit::new(parent, tree_id, author, message.clone());
+
+            let commit_id = db.store(&commit)?;
+            refs.update_head(commit_id.clone())?;
 
             println!(
-                "[(root-commit) {}]  {}",
+                "[{}{}]  {}",
+                if is_root { "(root-commit) " } else { "" },
                 commit_id,
                 message.lines().next().expect("Failed to read message")
             );
