@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 clap = "3.0.0-beta.2"
 anyhow = "1.0.38"
-rust-ini = "0.16"
 flate2 = "1.0"
 rust-crypto = "^0.2"
 strum = "0.20"
