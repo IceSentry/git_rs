@@ -73,7 +73,7 @@ fn main() -> Result<()> {
             let refs = Refs::new(git_path);
 
             let entries: Vec<Entry> = workspace
-                .list_files()?
+                .list_files(None)?
                 .iter()
                 .map(|path| {
                     let data =
@@ -131,16 +131,25 @@ fn main() -> Result<()> {
             let mut index = Index::new(git_path.join("index"));
 
             for path in paths {
-                let path_buf = PathBuf::from(path.clone());
-                log::debug!("adding {} to index", path);
+                let path_buf = PathBuf::from(path.clone()).canonicalize()?;
+                for file in workspace.list_files(Some(&path_buf))? {
+                    log::debug!("adding {} to index", file.display());
 
-                let data = workspace.read_file(&path_buf)?;
-                let stat = workspace.file_metadata(&path_buf);
+                    let data = workspace.read_file(&file)?;
+                    let metadata = workspace.file_metadata(&file)?;
 
-                let blob = Blob::new(data);
-                let object_id = db.store(&blob)?;
+                    let blob = Blob::new(data);
+                    let object_id = db.store(&blob)?;
 
-                index.add(path, object_id, &stat)?;
+                    // Using to_string_lossy here isn't nice
+                    index.add(
+                        file.to_str()
+                            .expect("Failed to convert path to a valid string")
+                            .into(),
+                        object_id,
+                        &metadata,
+                    )?;
+                }
             }
 
             index.write_updates()?;

@@ -1,17 +1,11 @@
-use std::{
-    cmp::min,
-    collections::BTreeMap,
-    path::{Component, Path, PathBuf, Prefix},
-    time::SystemTime,
-};
+use std::{cmp::min, collections::BTreeMap, path::PathBuf, time::SystemTime};
 
 use anyhow::Result;
-use is_executable::IsExecutable;
 
 use crate::{
     database::{MODE_EXECUTABLE, MODE_REGULAR},
     lockfile::Lockfile,
-    ObjectId,
+    Metadata, ObjectId,
 };
 
 const ENTRY_MAX_PATH_SIZE: usize = 0xfff;
@@ -31,12 +25,7 @@ impl Index {
         }
     }
 
-    pub fn add(
-        &mut self,
-        path: String,
-        object_id: ObjectId,
-        metadata: &std::fs::Metadata,
-    ) -> Result<()> {
+    pub fn add(&mut self, path: String, object_id: ObjectId, metadata: &Metadata) -> Result<()> {
         let entry = Entry::new(path.clone(), object_id, metadata)?;
         self.entries.insert(path, entry);
         Ok(())
@@ -79,28 +68,27 @@ struct Entry {
 }
 
 impl Entry {
-    pub fn new(path: String, object_id: ObjectId, metadata: &std::fs::Metadata) -> Result<Self> {
-        let path_buf = PathBuf::from(path.clone());
-        let ctime = metadata.created()?.duration_since(SystemTime::UNIX_EPOCH)?;
-        let mtime = metadata
-            .modified()?
-            .duration_since(SystemTime::UNIX_EPOCH)?;
-        // ino, uid, gid are set to 0 on windows because they don't have an equivalent
+    // TODO add a #[cfg(unix)] version
+    pub fn new(path: String, object_id: ObjectId, metadata: &Metadata) -> Result<Self> {
+        let created = metadata.created.duration_since(SystemTime::UNIX_EPOCH)?;
+        let modified = metadata.modified.duration_since(SystemTime::UNIX_EPOCH)?;
+
         Ok(Self {
-            ctime: ctime.as_secs() as u32,
-            ctime_nsec: ctime.as_nanos() as u32,
-            mtime: mtime.as_secs() as u32,
-            mtime_nsec: mtime.as_nanos() as u32,
-            dev: get_drive(&path_buf)?,
+            ctime: created.as_secs() as u32,
+            ctime_nsec: created.as_nanos() as u32,
+            mtime: modified.as_secs() as u32,
+            mtime_nsec: modified.as_nanos() as u32,
+            dev: metadata.device_id,
+            // ino, uid, gid are set to 0 on windows because they don't have an equivalent
             ino: 0,
             uid: 0,
             gid: 0,
-            mode: if path_buf.is_executable() {
+            mode: if metadata.is_executable {
                 MODE_EXECUTABLE as u32
             } else {
                 MODE_REGULAR as u32
             },
-            size: metadata.len() as u32,
+            size: metadata.len,
             oid: object_id,
             flags: min(path.len(), ENTRY_MAX_PATH_SIZE) as u16,
             path,
@@ -141,22 +129,4 @@ impl Entry {
 
         Ok(bytes)
     }
-}
-
-fn get_drive(path: &Path) -> Result<u32> {
-    Ok(
-        match path
-            .canonicalize()?
-            .components()
-            .next()
-            .expect("Failed to get first path component")
-        {
-            Component::Prefix(prefix_component) => match prefix_component.kind() {
-                Prefix::VerbatimDisk(drive) => drive as u32 - 1,
-                Prefix::Disk(drive) => drive as u32 - 1,
-                _ => panic!("No drive detected in path"),
-            },
-            _ => panic!("Component is not a prefix"),
-        },
-    )
 }

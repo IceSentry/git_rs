@@ -9,6 +9,7 @@ pub mod workspace;
 use std::{
     fmt::{self, Display, Formatter},
     path::PathBuf,
+    time::SystemTime,
 };
 
 use anyhow::{Context, Result};
@@ -110,4 +111,13 @@ impl HashWriter {
     pub fn finish(&mut self) -> String {
         self.hasher.result_str()
     }
+}
+
+pub struct Metadata {
+    pub created: SystemTime,
+    pub modified: SystemTime,
+    pub accessed: SystemTime,
+    pub len: u32,
+    pub is_executable: bool,
+    pub device_id: u32,
 }
