@@ -1,55 +1,59 @@
 use std::{
     cmp::min,
-    collections::HashMap,
+    collections::BTreeMap,
     path::{Component, Path, PathBuf, Prefix},
-    string::ToString,
     time::SystemTime,
 };
 
 use anyhow::Result;
 use is_executable::IsExecutable;
 
-use crate::{database::Mode, lockfile::Lockfile, ObjectId};
+use crate::{
+    database::{MODE_EXECUTABLE, MODE_REGULAR},
+    lockfile::Lockfile,
+    ObjectId,
+};
 
 const ENTRY_MAX_PATH_SIZE: usize = 0xfff;
 const ENTRY_BLOCK_SIZE: usize = 8;
+const VERSION: u32 = 2;
 
 pub struct Index {
-    entries: HashMap<String, Entry>,
+    entries: BTreeMap<String, Entry>,
     lockfile: Lockfile,
 }
 
 impl Index {
     pub fn new(path: PathBuf) -> Self {
         Self {
-            entries: HashMap::new(),
+            entries: BTreeMap::new(),
             lockfile: Lockfile::new(&path),
         }
     }
 
     pub fn add(
         &mut self,
-        path: &Path,
+        path: String,
         object_id: ObjectId,
         metadata: &std::fs::Metadata,
     ) -> Result<()> {
-        let entry = Entry::new(path, object_id, metadata)?;
-        self.entries.insert(path.display().to_string(), entry);
+        let entry = Entry::new(path.clone(), object_id, metadata)?;
+        self.entries.insert(path, entry);
         Ok(())
     }
 
     pub fn write_updates(&mut self) -> Result<()> {
         self.lockfile.hold_for_update()?;
 
-        let mut header_bytes: Vec<u8> = vec![];
+        let mut header_bytes = vec![];
         header_bytes.extend_from_slice(b"DIRC");
-        header_bytes.extend_from_slice(&2u32.to_be_bytes()); // version no.
+        header_bytes.extend_from_slice(&VERSION.to_be_bytes());
         header_bytes.extend_from_slice(&(self.entries.len() as u32).to_be_bytes());
 
         let mut hash_writer = crate::HashWriter::new();
         hash_writer.write(&header_bytes);
         for entry in self.entries.values() {
-            hash_writer.write(&entry.serialize());
+            hash_writer.write(&entry.serialize()?);
         }
         self.lockfile.write(&hash_writer.finish())?;
         self.lockfile.commit()?;
@@ -71,11 +75,12 @@ struct Entry {
     size: u32,
     oid: ObjectId,
     flags: u16,
-    path: PathBuf,
+    path: String,
 }
 
 impl Entry {
-    pub fn new(path: &Path, object_id: ObjectId, metadata: &std::fs::Metadata) -> Result<Self> {
+    pub fn new(path: String, object_id: ObjectId, metadata: &std::fs::Metadata) -> Result<Self> {
+        let path_buf = PathBuf::from(path.clone());
         let ctime = metadata.created()?.duration_since(SystemTime::UNIX_EPOCH)?;
         let mtime = metadata
             .modified()?
@@ -86,23 +91,23 @@ impl Entry {
             ctime_nsec: ctime.as_nanos() as u32,
             mtime: mtime.as_secs() as u32,
             mtime_nsec: mtime.as_nanos() as u32,
-            dev: get_drive(path)?,
+            dev: get_drive(&path_buf)?,
             ino: 0,
             uid: 0,
             gid: 0,
-            mode: if path.is_executable() {
-                Mode::Executable.to_string().parse::<u32>()?
+            mode: if path_buf.is_executable() {
+                MODE_EXECUTABLE as u32
             } else {
-                Mode::Regular.to_string().parse::<u32>()?
+                MODE_REGULAR as u32
             },
             size: metadata.len() as u32,
             oid: object_id,
-            flags: min(path.display().to_string().len(), ENTRY_MAX_PATH_SIZE) as u16,
-            path: path.to_path_buf(),
+            flags: min(path.len(), ENTRY_MAX_PATH_SIZE) as u16,
+            path,
         })
     }
 
-    fn serialize(&self) -> Vec<u8> {
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut bytes = vec![];
 
         // 32 bits integers
@@ -118,8 +123,7 @@ impl Entry {
         bytes.extend_from_slice(&self.size.to_be_bytes());
 
         // 20 bytes string
-        let oid = self.oid.as_bytes();
-        // FIXME this doesn't seem to be encoded properly
+        let oid = crate::utils::serialize_oid(&self.oid)?;
         assert!(oid.len() == 20);
         bytes.extend_from_slice(&self.oid.as_bytes());
 
@@ -127,15 +131,15 @@ impl Entry {
         bytes.extend_from_slice(&self.flags.to_be_bytes());
 
         // null terminated string
-        bytes.extend_from_slice(&self.path.display().to_string().as_bytes());
-        bytes.push(0);
+        bytes.extend_from_slice(self.path.as_bytes());
+        bytes.push(0x0);
 
         // padding
         while bytes.len() % ENTRY_BLOCK_SIZE != 0 {
-            bytes.push(0)
+            bytes.push(0x0)
         }
 
-        bytes
+        Ok(bytes)
     }
 }
 

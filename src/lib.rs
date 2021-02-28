@@ -3,6 +3,7 @@
 pub mod database;
 pub mod index;
 pub mod lockfile;
+pub mod utils;
 pub mod workspace;
 
 use std::{

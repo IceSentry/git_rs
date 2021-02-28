@@ -7,9 +7,12 @@ use std::{
 use is_executable::IsExecutable;
 
 use crate::{
-    database::{self, Mode, Object},
+    database::{self, Object},
+    utils::serialize_oid,
     ObjectId,
 };
+
+use super::{MODE_DIRECTORY, MODE_EXECUTABLE, MODE_REGULAR};
 
 pub enum TreeEntry {
     Tree(Tree),
@@ -17,9 +20,9 @@ pub enum TreeEntry {
 }
 
 impl TreeEntry {
-    pub fn mode(&self) -> &str {
+    pub fn mode(&self) -> i32 {
         match self {
-            TreeEntry::Tree(_) => Mode::Directory.into(),
+            TreeEntry::Tree(_) => MODE_DIRECTORY,
             TreeEntry::Entry(entry) => entry.mode(),
         }
     }
@@ -58,13 +61,15 @@ impl Object for Tree {
             .iter()
             .flat_map(|(path, entry)| {
                 let mut entry_vec = format!(
-                    "{} {}\0",
+                    "{:o} {}\0",
                     entry.mode(),
                     path.to_str().expect("Failed to convert to str")
                 )
                 .as_bytes()
                 .to_vec();
-                entry_vec.extend_from_slice(entry.object_id().as_bytes());
+                entry_vec.extend_from_slice(
+                    &serialize_oid(&entry.object_id()).expect("invalid object_id"),
+                );
                 entry_vec
             })
             .collect()
@@ -143,11 +148,11 @@ impl Entry {
         Self { path, object_id }
     }
 
-    pub fn mode(&self) -> &str {
+    pub fn mode(&self) -> i32 {
         if self.path.is_executable() {
-            Mode::Executable.into()
+            MODE_EXECUTABLE
         } else {
-            Mode::Regular.into()
+            MODE_REGULAR
         }
     }
 }

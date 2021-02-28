@@ -11,20 +11,12 @@ use std::{
 
 use anyhow::Result;
 use flate2::{write::ZlibEncoder, Compression};
-use strum_macros::Display;
-use strum_macros::IntoStaticStr;
 
 use crate::{hash, ObjectId};
 
-#[derive(IntoStaticStr, Display)]
-pub enum Mode {
-    #[strum(serialize = "100644")]
-    Regular,
-    #[strum(serialize = "100755")]
-    Executable,
-    #[strum(serialize = "40000")]
-    Directory,
-}
+pub const MODE_REGULAR: i32 = 0o100644;
+pub const MODE_EXECUTABLE: i32 = 0o100644;
+pub const MODE_DIRECTORY: i32 = 0o100644;
 
 pub trait Object {
     fn serialize_type(&self) -> &str;

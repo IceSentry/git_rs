@@ -34,13 +34,17 @@ enum Commands {
     },
     /// Add file to the index
     Add {
-        /// File to add
-        #[clap(parse(from_os_str))]
-        path: PathBuf,
+        /// Files to add
+        #[clap()]
+        paths: Vec<String>,
     },
     Read {
         #[clap(name = "file", parse(from_os_str))]
         path: PathBuf,
+    },
+    ReadO {
+        #[clap(name = "file")]
+        object_id: String,
     },
     Clear,
 }
@@ -117,10 +121,8 @@ fn main() -> Result<()> {
                 message.lines().next().expect("Failed to read message")
             );
         }
-        Commands::Add { path } => {
+        Commands::Add { paths } => {
             // FIXME this assumes we are at root of repo
-            log::debug!("adding {} to index", path.display());
-            log::debug!("mode: {}", git_rs::database::Mode::Directory);
             let root_path = std::env::current_dir()?;
             let git_path = root_path.join(GIT_FOLDER);
 
@@ -128,18 +130,41 @@ fn main() -> Result<()> {
             let db = Database::new(git_path.join("objects"));
             let mut index = Index::new(git_path.join("index"));
 
-            let data = workspace.read(&path);
-            let stat = workspace.file_metadata(&path);
+            for path in paths {
+                let path_buf = PathBuf::from(path.clone());
+                log::debug!("adding {} to index", path);
 
-            let blob = Blob::new(data);
-            let object_id = db.store(&blob)?;
+                let data = workspace.read_file(&path_buf)?;
+                let stat = workspace.file_metadata(&path_buf);
 
-            index.add(&path, object_id, &stat)?;
+                let blob = Blob::new(data);
+                let object_id = db.store(&blob)?;
+
+                index.add(path, object_id, &stat)?;
+            }
+
             index.write_updates()?;
         }
         Commands::Read { path } => {
             // WARN this is just for debug purposes
             let compressed_file = fs::read(path)?;
+            let mut d = ZlibDecoder::new(&compressed_file[..]);
+            let mut buf = Vec::new();
+            d.read_to_end(&mut buf)
+                .expect("Failed to read compressed_file");
+            std::io::stdout().write_all(&buf)?; // This makes it possible to pipe the output
+        }
+        Commands::ReadO { object_id } => {
+            // WARN this is just for debug purposes
+            let root_path = std::env::current_dir()?;
+            let git_path = root_path.join(GIT_FOLDER);
+            let object_path = git_path
+                .join("objects")
+                .join(&object_id[..2])
+                .join(&object_id[2..]);
+            println!("{}", object_path.display());
+
+            let compressed_file = fs::read(object_path)?;
             let mut d = ZlibDecoder::new(&compressed_file[..]);
             let mut buf = Vec::new();
             d.read_to_end(&mut buf)
