@@ -8,7 +8,7 @@ use is_executable::IsExecutable;
 
 use crate::{
     database::{self, Object},
-    utils::serialize_oid,
+    utils::serialize_hash,
     ObjectId,
 };
 
@@ -68,7 +68,7 @@ impl Object for Tree {
                 .as_bytes()
                 .to_vec();
                 entry_vec.extend_from_slice(
-                    &serialize_oid(&entry.object_id()).expect("invalid object_id"),
+                    &serialize_hash(&entry.object_id()).expect("invalid object_id"),
                 );
                 entry_vec
             })

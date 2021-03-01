@@ -8,6 +8,7 @@ pub mod workspace;
 
 use std::{
     fmt::{self, Display, Formatter},
+    io::Write,
     path::PathBuf,
     time::SystemTime,
 };
@@ -64,8 +65,8 @@ impl Refs {
             )
         })?;
 
-        lockfile.write(&object_id)?;
-        lockfile.write("\n")?;
+        lockfile.write_all(&object_id.as_bytes())?;
+        lockfile.write_all(b"\n")?;
         lockfile.commit()?;
         Ok(())
     }
